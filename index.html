@@ -99,7 +99,7 @@
 				padding: 20px 32px;
 				background: var(--bot-bubble);
 				border-radius: 35px;
-				border-bottom-left-radius: 8px;
+				border-bottom-left-radius: 4px;
 				margin-left: 1rem;
 				margin-bottom: 1.5rem;
 				width: fit-content;
@@ -226,7 +226,10 @@
 
 			let apiKey = "";
 			let systemPrompt = "You are a helpful and professional assistant.";
+			let coachPersona =
+				"You are a coaching AI. Analyze the previous conversation and provide constructive feedback to the learner.";
 			let chatHistory = [];
+			let isCoachingMode = false;
 
 			function getCurrentTime() {
 				const now = new Date();
@@ -269,15 +272,31 @@
 					return;
 				}
 
+				// Command logic: Switch to Coaching Mode
+				if (userPrompt.trim().toLowerCase() === "/feedback") {
+					isCoachingMode = true;
+					window.addChatMessage("System", "Switching to Coaching Mode...");
+					userPrompt =
+						"Please analyze my performance in this conversation and provide feedback based on our transcript.";
+				}
+				// Command logic: Switch back to Simulation Mode
+				else if (userPrompt.trim().toLowerCase() === "/chat") {
+					isCoachingMode = false;
+					window.addChatMessage("System", "Returning to simulation...");
+					return; // Don't call API yet, wait for next message
+				}
+
 				window.showTyping();
 				chatHistory.push({ role: "user", parts: [{ text: userPrompt }] });
 
-				// Updated URL to remove the key from the query string
 				const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent`;
+
+				const activePersona = isCoachingMode ? coachPersona : systemPrompt;
+				const aiLabel = isCoachingMode ? "CoachingAI" : "Customer";
 
 				const payload = {
 					contents: chatHistory,
-					systemInstruction: { parts: [{ text: systemPrompt }] },
+					systemInstruction: { parts: [{ text: activePersona }] },
 				};
 
 				const fetchWithRetry = async (retries = 5, delay = 1000) => {
@@ -286,7 +305,7 @@
 							method: "POST",
 							headers: {
 								"Content-Type": "application/json",
-								"x-goog-api-key": apiKey, // KEY MOVED TO HEADER
+								"x-goog-api-key": apiKey,
 							},
 							body: JSON.stringify(payload),
 						});
@@ -294,7 +313,7 @@
 						return await response.json();
 					} catch (error) {
 						if (retries > 0) {
-							await new Promise((res) => setTimeout(res, delay));
+							await new Promise((res) => setTimeout(res, delay * 2));
 							return fetchWithRetry(retries - 1, delay * 2);
 						}
 						throw error;
@@ -307,7 +326,7 @@
 						result.candidates?.[0]?.content?.parts?.[0]?.text ||
 						"No response received.";
 					chatHistory.push({ role: "model", parts: [{ text: aiText }] });
-					window.addChatMessage("Customer", aiText);
+					window.addChatMessage(aiLabel, aiText);
 				} catch (error) {
 					window.addChatMessage("System", "Connection lost. Please try again.");
 				}
@@ -341,7 +360,10 @@
 					window.addChatMessage("System", "Session started.");
 				} else if (data.action === "setSystemPrompt") {
 					systemPrompt = data.text;
-					window.addChatMessage("System", "Configuration active.");
+					window.addChatMessage("System", "Customer persona active.");
+				} else if (data.action === "setCoachPersona") {
+					coachPersona = data.text;
+					// Silently updated behind the scenes
 				} else if (data.action === "addMessage") {
 					window.addChatMessage(data.sender, data.text);
 				} else if (data.action === "showTyping") {
@@ -349,6 +371,7 @@
 				} else if (data.action === "clear") {
 					container.innerHTML = "";
 					chatHistory = [];
+					isCoachingMode = false;
 				}
 			}
 
