@@ -85,7 +85,7 @@
 			.message-wrapper.bot .bubble {
 				background-color: var(--bot-bubble);
 				color: var(--bot-text);
-				border-bottom-left-radius: 8px;
+				border-bottom-left-radius: 4px;
 			}
 
 			.timestamp {
@@ -244,6 +244,8 @@
 				container.innerHTML = "";
 				chatHistory = [];
 				isCoachingMode = false;
+				// Clear completion flag on restart
+				localStorage.setItem("chat_activity_complete", "false");
 			};
 
 			/**
@@ -361,6 +363,11 @@
 						"No response received.";
 					chatHistory.push({ role: "model", parts: [{ text: aiText }] });
 					window.addChatMessage(aiLabel, aiText);
+
+					// Update Storyline via localStorage if feedback was successfully given
+					if (isCoachingMode) {
+						localStorage.setItem("chat_activity_complete", "true");
+					}
 				} catch (error) {
 					window.addChatMessage(
 						"System",
@@ -414,6 +421,9 @@
 			window.addEventListener("message", function (event) {
 				handleInboundAction(event.data);
 			});
+
+			// Initialize localStorage flag
+			localStorage.setItem("chat_activity_complete", "false");
 		</script>
 	</body>
 </html>
