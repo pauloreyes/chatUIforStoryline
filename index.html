@@ -232,7 +232,7 @@
 			const SHOW_INITIAL_MESSAGES = true; // Initial conversation messages
 
 			// ========== RESPONSE LIMIT SETTINGS ==========
-			const MAX_RESPONSES = 10; // Max learner responses before feedback
+			const MAX_RESPONSES = 10; // Max learner responses before feedback. Set to 999 to disable limit and hide counter.
 			// ======================================
 
 			// ========== INITIAL CONVERSATION ==========
@@ -325,7 +325,7 @@
 				time.innerText = getCurrentTime();
 				wrapper.appendChild(time);
 
-				if (isUser && !isCoachingMode) {
+				if (isUser && !isCoachingMode && MAX_RESPONSES !== 999) {
 					const count = document.createElement("div");
 					count.className = "timestamp";
 					count.innerText = `${responseCount + 1} of ${MAX_RESPONSES}`;
@@ -352,7 +352,7 @@
 				// Increment response count for learner messages (not commands)
 				if (!cmd.startsWith("/") && !isCoachingMode) {
 					responseCount++;
-					if (responseCount >= MAX_RESPONSES) {
+					if (MAX_RESPONSES !== 999 && responseCount >= MAX_RESPONSES) {
 						window.addChatMessage(
 							"System",
 							"Maximum response limit reached. Triggering feedback..."
