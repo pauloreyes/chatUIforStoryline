@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
@@ -19,7 +19,12 @@
 				margin: 0;
 				padding: 0;
 				background-color: var(--bg-color);
-				font-family: Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+				font-family:
+					Segoe UI,
+					Roboto,
+					Helvetica,
+					Arial,
+					sans-serif;
 				height: 100vh;
 				display: flex;
 				flex-direction: column;
@@ -194,8 +199,8 @@
 				font-size: 14px;
 				padding: 4px 10px;
 				border-radius: 10px;
-				background: #fee2e2;
-				color: #991b1b;
+				background: #dcfce7;
+				color: #166534;
 				font-weight: bold;
 				pointer-events: none;
 				z-index: 100;
@@ -209,7 +214,7 @@
 	</head>
 
 	<body>
-		<div id="api-status">Key Missing</div>
+		<div id="api-status">Ready</div>
 		<div id="chat-container"></div>
 
 		<div id="typing" class="typing-indicator">
@@ -243,7 +248,11 @@
 			const INITIAL_MESSAGES = [
 				{
 					sender: "Customer",
+<<<<<<< HEAD
+					text: "It doesn't matter anymore. The account, the limits... none of that is relevant now. The money is gone and I feel trapped. There's no point in trying to fix it.",
+=======
 					text: "I NEED URGENT ASSISTANCE! I CANNOT MAKE A DEPOSIT! PLEASE HELP!",
+>>>>>>> aaaf8cac7b9e2043f381397c38b71320c920e731
 				},
 			];
 			// ===========================================
@@ -254,10 +263,10 @@
 			const sendBtn = document.getElementById("send-btn");
 			const apiStatus = document.getElementById("api-status");
 
-			let apiKey = "";
-			let systemPrompt = "You are a helpful assistant.";
-			let coachPersona =
-				"You are a coaching AI. Analyze the performance and provide feedback.";
+			function generateSessionId() {
+				return Date.now().toString() + Math.random().toString(36).substring(2);
+			}
+			let sessionId = generateSessionId();
 			let chatHistory = [];
 			let isCoachingMode = false;
 			let responseCount = 0;
@@ -271,10 +280,13 @@
 				INITIAL_MESSAGES.forEach((msg) => {
 					// Add to UI
 					window.addChatMessage(msg.sender, msg.text);
+<<<<<<< HEAD
+=======
 
 					// Add to chat history for AI context
 					const role = msg.sender.toLowerCase() === "user" ? "user" : "model";
 					chatHistory.push({ role: role, parts: [{ text: msg.text }] });
+>>>>>>> aaaf8cac7b9e2043f381397c38b71320c920e731
 				});
 			}
 
@@ -289,6 +301,7 @@
 			window.clearChat = function () {
 				container.innerHTML = "";
 				chatHistory = [];
+				sessionId = generateSessionId();
 				isCoachingMode = false;
 				responseCount = 0;
 				// Clear completion flag on restart
@@ -332,6 +345,12 @@
 					wrapper.appendChild(count);
 				}
 
+<<<<<<< HEAD
+				// Add to local transcript tracking
+				chatHistory.push({ sender: sender, text: text, timestamp: getCurrentTime() });
+
+=======
+>>>>>>> aaaf8cac7b9e2043f381397c38b71320c920e731
 				container.appendChild(wrapper);
 				container.scrollTop = container.scrollHeight;
 			};
@@ -341,12 +360,10 @@
 				container.scrollTop = container.scrollHeight;
 			};
 
-			async function fetchGeminiResponse(userPrompt) {
-				if (!apiKey) {
-					window.addChatMessage("System", "Error: Configuration incomplete.");
-					return;
-				}
+			const N8N_WEBHOOK_URL =
+				"https://n8n.pochwork.com/webhook/5ece6ab9-7d99-4d50-a275-1e95630a3b93/chat";
 
+			async function fetchAIResponse(userPrompt) {
 				const cmd = userPrompt.trim().toLowerCase();
 
 				// Increment response count for learner messages (not commands)
@@ -379,57 +396,84 @@
 				else if (cmd === "/restart") {
 					window.clearChat();
 					window.addChatMessage("System", "Conversation restarted. Memory cleared.");
+<<<<<<< HEAD
+=======
 					// Reload initial conversation messages
+>>>>>>> aaaf8cac7b9e2043f381397c38b71320c920e731
 					loadInitialMessages();
 					return;
 				}
 
+				// Increment response count ONLY in simulation mode and for non-commands
+				if (!cmd.startsWith("/") && !isCoachingMode) {
+					responseCount++;
+					if (MAX_RESPONSES !== 999 && responseCount >= MAX_RESPONSES) {
+						window.addChatMessage(
+							"System",
+							"Maximum response limit reached. Triggering feedback...",
+						);
+						fetchAIResponse("/feedback");
+						return;
+					}
+				}
+
 				window.showTyping();
-				chatHistory.push({ role: "user", parts: [{ text: userPrompt }] });
 
-				const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent`;
-
-				const activePersona = isCoachingMode ? coachPersona : systemPrompt;
 				const aiLabel = isCoachingMode ? "CoachingAI" : "Customer";
 
 				const payload = {
-					contents: chatHistory,
-					systemInstruction: {
-						parts: [{ text: activePersona }],
-					},
+					chatInput: userPrompt,
+					message: userPrompt,
+					sessionId: sessionId,
+					mode: isCoachingMode ? "feedback" : "simulation",
+					isCoachingMode: isCoachingMode,
+					responseCount: responseCount,
+					maxResponses: MAX_RESPONSES,
 				};
 
-				const fetchWithRetry = async (retries = 3, delay = 1000) => {
-					try {
-						const response = await fetch(url, {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-								"x-goog-api-key": apiKey,
-							},
-							body: JSON.stringify(payload),
-						});
+				// If this is the first message of a new session, send the visible initial messages as context
+				if (responseCount === 1) {
+					payload.initialContext = chatHistory
+						.filter((m) => m.sender !== "System")
+						.slice(0, -1);
+				}
 
-						if (!response.ok) {
-							const errorData = await response.json();
-							throw new Error(errorData.error?.message || "API_FAIL");
-						}
-						return await response.json();
-					} catch (error) {
-						if (retries > 0) {
-							await new Promise((res) => setTimeout(res, delay));
-							return fetchWithRetry(retries - 1, delay * 2);
-						}
-						throw error;
-					}
-				};
+				// Include full transcript ONLY when sending to the coaching agent
+				if (isCoachingMode) {
+					payload.transcript = chatHistory;
+				}
 
 				try {
-					const result = await fetchWithRetry();
+					const response = await fetch(N8N_WEBHOOK_URL, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify(payload),
+					});
+
+					if (!response.ok) {
+						throw new Error(`Status: ${response.status}`);
+					}
+
+					let result;
+					const contentType = response.headers.get("content-type");
+					if (contentType && contentType.includes("application/json")) {
+						result = await response.json();
+					} else {
+						const text = await response.text();
+						result = { output: text };
+					}
+
+					// Expecting response in result.output, result.response, result.text, or result.message
 					const aiText =
-						result.candidates?.[0]?.content?.parts?.[0]?.text ||
-						"No response received.";
-					chatHistory.push({ role: "model", parts: [{ text: aiText }] });
+						result.output ||
+						result.response ||
+						result.text ||
+						result.message ||
+						(Array.isArray(result) ? result[0].output : null) ||
+						(typeof result === "string" ? result : "No response received.");
+
 					window.addChatMessage(aiLabel, aiText);
 
 					// Update Storyline via localStorage if feedback was successfully given
@@ -437,20 +481,23 @@
 						localStorage.setItem("chat_activity_complete", "true");
 					}
 				} catch (error) {
-					window.addChatMessage(
-						"System",
-						"Configuration Error: Please verify key and variables."
-					);
+					console.error("Error calling n8n:", error);
+					window.addChatMessage("System", `Communication Error. Please try again.`);
 				}
 			}
 
 			function handleSend() {
 				const text = userInput.value.trim();
 				if (text) {
+					const cmd = text.toLowerCase();
+					// Pre-emptively switch mode for UI counter accuracy
+					if (cmd === "/feedback") isCoachingMode = true;
+					if (cmd === "/chat") isCoachingMode = false;
+
 					window.addChatMessage("user", text);
 					userInput.value = "";
 					sendBtn.disabled = true;
-					fetchGeminiResponse(text);
+					fetchAIResponse(text);
 				}
 			}
 
@@ -465,6 +512,9 @@
 			sendBtn.addEventListener("click", handleSend);
 
 			function handleInboundAction(data) {
+<<<<<<< HEAD
+				if (data.action === "addMessage") {
+=======
 				if (data.action === "setApiKey" || (data.key && !data.action)) {
 					apiKey = data.key;
 					apiStatus.innerText = "Connected";
@@ -486,6 +536,7 @@
 				} else if (data.action === "setCoachPersona") {
 					coachPersona = data.text;
 				} else if (data.action === "addMessage") {
+>>>>>>> aaaf8cac7b9e2043f381397c38b71320c920e731
 					window.addChatMessage(data.sender, data.text);
 				} else if (data.action === "showTyping") {
 					window.showTyping();
@@ -500,6 +551,14 @@
 
 			// Initialize localStorage flag
 			localStorage.setItem("chat_activity_complete", "false");
+
+			// Load initial conversation messages on startup
+			loadInitialMessages();
+
+			// Show help if enabled
+			if (SHOW_COMMAND_HELP_MSG) {
+				showCommandHelp();
+			}
 		</script>
 	</body>
 </html>
